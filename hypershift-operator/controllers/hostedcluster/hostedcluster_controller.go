@@ -74,6 +74,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -207,7 +209,13 @@ func (r *HostedClusterReconciler) SetupWithManager(mgr ctrl.Manager, createOrUpd
 			MaxConcurrentReconciles: 10,
 		})
 	for _, managedResource := range r.managedResources() {
-		builder.Watches(managedResource, handler.EnqueueRequestsFromMapFunc(enqueueHostedClustersFunc(metricsSet, operatorNamespace, mgr.GetClient())))
+		builder.Watches(
+			managedResource,
+			handler.EnqueueRequestsFromMapFunc(enqueueHostedClustersFunc(metricsSet, operatorNamespace, mgr.GetClient())),
+			ctrlbuilder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
+				return o.GetAnnotations()[HostedClusterAnnotation] != ""
+			})),
+		)
 	}
 
 	// Set based on SCC capability
