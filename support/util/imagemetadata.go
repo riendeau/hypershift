@@ -59,6 +59,9 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 		return nil, fmt.Errorf("failed to parse image reference %q: %w", imageRef, err)
 	}
 
+	log.Info(fmt.Sprintf("Getting image metadata for imageRef %s", imageRef))
+	log.Info(fmt.Sprintf("Number of OpenShiftImageRegistryOverrides: %d", len(r.OpenShiftImageRegistryOverrides)))
+
 	// There are no ICSPs/IDMSs to process.
 	// That means the image reference should be pulled from the external registry
 	if len(r.OpenShiftImageRegistryOverrides) == 0 {
@@ -69,7 +72,9 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 
 		// If the image reference contains a digest, immediately look it up in the cache
 		if parsedImageRef.ID != "" {
+			log.Info(fmt.Sprintf("Looking up ID %s in cache", parsedImageRef.ID))
 			if imageConfigObject, exists := imageMetadataCache.Get(parsedImageRef.ID); exists {
+				log.Info(fmt.Sprintf("Found image with ID %s in cache", parsedImageRef.ID))
 				return imageConfigObject.(*dockerv1client.DockerImageConfig), nil
 			}
 		}
@@ -84,6 +89,7 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 	// Get the image repo info based the source/mirrors in the ICSPs/IDMSs
 	for source, mirrors := range r.OpenShiftImageRegistryOverrides {
 		for _, mirror := range mirrors {
+			log.Info(fmt.Sprintf("Looking for override in mirror %s", mirror))
 			ref, overrideFound, err = GetRegistryOverrides(ctx, parsedImageRef, source, mirror)
 			if err != nil {
 				log.Info(fmt.Sprintf("failed to find registry override for image reference %q with source, %s, mirror %s: %s", imageRef, source, mirror, err.Error()))
@@ -93,13 +99,16 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 		}
 		// We found a successful source/mirror combo so break continuing any further source/mirror combos
 		if overrideFound {
+			log.Info("Override found")
 			break
 		}
 	}
 
 	// If the image reference contains a digest, immediately look it up in the cache
 	if ref.ID != "" {
+		log.Info(fmt.Sprintf("Looking up ID %s in cache (2)", parsedImageRef.ID))
 		if imageConfigObject, exists := imageMetadataCache.Get(ref.ID); exists {
+			log.Info(fmt.Sprintf("Found image with ID %s in cache (2)", parsedImageRef.ID))
 			return imageConfigObject.(*dockerv1client.DockerImageConfig), nil
 		}
 	}
@@ -117,7 +126,9 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 
 	// If the image ref did not contain a digest, attempt looking it up by digest after we've fetched the digest
 	if ref.ID == "" {
+		log.Info(fmt.Sprintf("Looking up in cache by digest: %s", string(location.Manifest)))
 		if imageConfigObject, exists := imageMetadataCache.Get(string(location.Manifest)); exists {
+			log.Info(fmt.Sprintf("Found image in cache by digest: %s", string(location.Manifest)))
 			return imageConfigObject.(*dockerv1client.DockerImageConfig), nil
 		}
 	}
@@ -126,6 +137,7 @@ func (r *RegistryClientImageMetadataProvider) ImageMetadata(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain image configuration for %s: %w", imageRef, err)
 	}
+	log.Info(fmt.Sprintf("Adding to image metadata cache with digest key: %s", string(location.Manifest)))
 	imageMetadataCache.Add(string(location.Manifest), config)
 
 	return config, nil
