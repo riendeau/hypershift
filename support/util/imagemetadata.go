@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	imageMetadataCache = lru.New(1000)
+	imageMetadataCache = lru.New(100000)
 )
 
 type ImageMetadataProvider interface {
