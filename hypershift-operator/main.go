@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
@@ -200,6 +201,10 @@ func run(ctx context.Context, opts *StartOptions, log logr.Logger) error {
 	})
 	if err != nil {
 		return fmt.Errorf("unable to start manager: %w", err)
+	}
+
+	for _, p := range []string{"goroutine", "heap", "allocs", "threadcreate", "block", "mutex"} {
+		mgr.AddMetricsServerExtraHandler(fmt.Sprintf("/pprof/%s", p), pprof.Handler(p))
 	}
 
 	kubeDiscoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
